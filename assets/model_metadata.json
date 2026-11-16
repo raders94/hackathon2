@@ -1,0 +1,53 @@
+{
+  "model_kind": "CatBoostRegressor(log(vessel_total_cargo / total_berth_hours))",
+  "target_units": "original cargo units per total berth-hour; actual within-hour moves unavailable",
+  "training_years": [
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+  ],
+  "test_year": 2025,
+  "training_n": 39708,
+  "test_n": 7664,
+  "gt_training_n": 30499,
+  "features": [
+    "terminal",
+    "month",
+    "weekday",
+    "berth_hour",
+    "log_cargo",
+    "arrival_prev6",
+    "wind",
+    "wave",
+    "vis_10m"
+  ],
+  "features_GT": [
+    "terminal",
+    "month",
+    "weekday",
+    "berth_hour",
+    "log_cargo",
+    "arrival_prev6",
+    "wind",
+    "wave",
+    "vis_10m",
+    "log_gt"
+  ],
+  "validation_scope": "2025 where all berth-time weather present; non-random event snapshots in 2025",
+  "weather_basis": "berth-time wind/wave/visibility, NOT entire berth exposure or real-time weather feed",
+  "gt_defaults": {
+    "BCT": 18412.0,
+    "BNCT": 94623.0,
+    "BPTC_G": 9932.0,
+    "BPT_S": 9757.0,
+    "HPNT": 43369.0,
+    "PNC": 68570.0,
+    "PNIT": 91649.0
+  },
+  "model_source": "User supplied v7 Busan7 analysis package, 2020-2025 de-duplicated calls",
+  "loss": "RMSE on log(rate)",
+  "no_gt_primary": true,
+  "limitation": "Rate is berth-average proxy. Terminal total scenario = predicted vessel-average rate x estimated concurrent berthed vessels (not actual hourly cargo throughput)."
+}

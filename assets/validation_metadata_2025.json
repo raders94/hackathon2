@@ -1,0 +1,19 @@
+{
+  "model": "throughput_nonGT_2020_2024.cbm (unchanged)",
+  "predicted_target": "log(vessel total cargo / full berth hours)",
+  "train_years": "2020-2024",
+  "holdout_year": "2025",
+  "train_n": 39708,
+  "holdout_n": 7664,
+  "holdout_candidates_2025": 10270,
+  "holdout_complete_weather_2025": 7664,
+  "overall_r2": 0.8245821272360521,
+  "overall_mae": 7.175860834985075,
+  "severity_method": "P95 any weather trigger first, else P90 any trigger, else P90 below; harbor-specific thresholds from 2020-24",
+  "severity_observation": "Single observation at berth-time, not cumulative adverse weather exposure during full berth.",
+  "2025_sample_limitation": "2025 Shin Port weather is often event-time snapshot; model evaluation is selected, not random.",
+  "r2_reporting": "R2 only for n >= 30; small groups not reported",
+  "wape_pct": "sum(abs(pred-actual))/sum(actual)*100",
+  "no_individual_records_exported": true,
+  "gt_validation": "No 2025 GT holdout; GT mode excluded from performance claims"
+}
