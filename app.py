@@ -1,4 +1,4 @@
-"""PORTCAST Hackathon 2026 | publicly shareable aggregated-evidence dashboard.
+"""PORTaI Hackathon 2026 | publicly shareable aggregated-evidence dashboard.
 
 Run `streamlit run app.py`. No live data or web service connections.
 The model predicts vessel-average cargo / total berth-hour, not true intra-hour
@@ -28,7 +28,7 @@ from story import (styled,rate_box,threshold_chart,dose_forest,bct_five_stage,wi
 from digital_twin_lab import TrainingLab,goal_plot,process_plot
 from explainability import explain_prediction, compare_weather_attributions
 
-st.set_page_config(page_title='PORTCAST | 부산항 기상영향·AI·운영학습',page_icon='⚓',layout='wide',initial_sidebar_state='collapsed')
+st.set_page_config(page_title='PORTaI | 부산항 기상영향·AI·운영학습',page_icon='⚓',layout='wide',initial_sidebar_state='collapsed')
 sns.set_theme(style='whitegrid',palette='deep')
 PALETTE=sns.color_palette('deep').as_hex()
 
@@ -219,7 +219,7 @@ if 'initialized_default_2027_v28' not in st.session_state:
     st.session_state['initialized_default_2027_v28']=True
 if 'story_step' not in st.session_state:st.session_state['story_step']='01 · 현황'
 
-st.markdown('''<div class="port-hero"><div class="eyebrow">PORTCAST / WEATHER × OPERATIONS × LEARNING</div>
+st.markdown('''<div class="port-hero"><div class="eyebrow">PORTaI / WEATHER × OPERATIONS × LEARNING</div>
 <h1>날씨를 예측하는 AI에서, 악천후 대응을 학습하는 항만 AI로</h1>
 <p>① 조건별 평균 작업률 예측·SHAP → ② 작업량 보정 모델 B → ③ 악천후 대응 추세 검증 → ④ 디지털 트윈 반복훈련 제안</p></div>''',unsafe_allow_html=True)
 info1,info2,info3,info4=st.columns(4)
@@ -741,8 +741,8 @@ with T6:
     st.caption('평온조건 상승은 자동화·운영숙련의 인과효과가 아닙니다. 강풍 추세 모델은 2022년 BCT 고노출이 6건으로 매우 적고, 강도 통제 방식에 따라 기울기 방향이 달라질 수 있습니다.')
     with st.expander('강풍 민감도·개선속도 분석표 CSV 다운로드',expanded=False):
         q1,q2=st.columns(2)
-        with q1:st.download_button('모델 B 7터미널 결과',eff.to_csv(index=False).encode('utf-8-sig'),file_name='PORTCAST_ModelB_7terminals.csv',mime='text/csv')
-        with q2:st.download_button('운영학습 연도 추세 결과',years.to_csv(index=False).encode('utf-8-sig'),file_name='PORTCAST_Weather_Learning_Annual.csv',mime='text/csv')
+        with q1:st.download_button('모델 B 7터미널 결과',eff.to_csv(index=False).encode('utf-8-sig'),file_name='PORTaI_ModelB_7terminals.csv',mime='text/csv')
+        with q2:st.download_button('운영학습 연도 추세 결과',years.to_csv(index=False).encode('utf-8-sig'),file_name='PORTaI_Weather_Learning_Annual.csv',mime='text/csv')
     st.markdown('<div class="story-note"><b>확장 제안</b> · 운영기술의 자동화와 악천후 대응학습은 구분해 검증해야 합니다. BCT에서 시간별 Moves/h·작업중단/재개·작업조·장비 로그를 수집하고, 희소 악천후를 디지털 트윈에서 반복 재현하여 유사조건 비교와 운영자 승인하에 실효성을 검증하는 90일 파일럿을 제안합니다. 현재 디지털 트윈의 대응정책 효과는 미구현·미검증입니다.</div>',unsafe_allow_html=True)
 
 with T3:
@@ -1024,4 +1024,4 @@ with T5:
                            '부산항_2025_기상변수별_예측검증.csv',mime='text/csv')
 
 st.markdown('---')
-st.caption('PORTCAST | 7개 터미널 기상영향 · 모델 B · SHAP · 운영학습 추세 검증 → 디지털 트윈 확장 제안(현재 미구현) · 개인 프로젝트 · GT 포함 2020~2024 / GT 제외 2020~2025. 2025년 출항예정시각은 연구자 확인에 따라 실제 출항시각으로 취급했습니다. 실제 시간별 하역기록과 실시간 기상예보는 제공되지 않습니다.')
+st.caption('PORTaI | 7개 터미널 기상영향 · 모델 B · SHAP · 운영학습 추세 검증 → 디지털 트윈 확장 제안(현재 미구현) · 개인 프로젝트 · GT 포함 2020~2024 / GT 제외 2020~2025. 2025년 출항예정시각은 연구자 확인에 따라 실제 출항시각으로 취급했습니다. 실제 시간별 하역기록과 실시간 기상예보는 제공되지 않습니다.')
