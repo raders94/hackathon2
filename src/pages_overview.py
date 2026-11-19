@@ -41,12 +41,12 @@ def render_overview(D, META, navigate):
         st.markdown(html, unsafe_allow_html=True)
         st.button('운영학습 자세히 →', key='home_learning', on_click=navigate, args=('운영학습',), width='stretch')
     st.caption('각 카드의 막대는 해당 카드 안에서 같은 기준으로 비교합니다. 카드 간에는 지표와 눈금이 다릅니다.')
-    section('직접 해보고 싶다면', '입력한 날씨의 예측과, 아직 검증하지 않은 개선 목표를 별도 화면에서 살펴볼 수 있습니다.')
+    section('같은 조건을 세 가지로 살펴보세요', '평균 작업률 예측 → 실제 과거 사례 → 큰 효율저하의 참고용 위험 확률. 분야별 화면에서 근거를 확인합니다.')
     q1, q2, q3 = st.columns(3)
     for col, title, desc, target, key in [
         (q1, '01  이 날씨라면?', '터미널과 날씨를 바꾸고 예상 작업률과 SHAP 설명을 확인합니다.', 'AI 예측', 'home_predict'),
-        (q2, '02  어떤 터미널을 비교했나?', '7개 터미널의 기항 수, 평균 작업률 분포와 기상 기준을 살펴봅니다.', '터미널 현황', 'home_terminals'),
-        (q3, '03  얼마나 회복할 수 있다면?', '회복 비율을 가정해 목표를 계산하고 90일 검증 계획을 확인합니다.', '개선 계획', 'home_plan'),
+        (q2, '02  비슷한 실제 사례는?', '같은 터미널에서 작업량·날씨가 비슷한 기항의 작업률 분포와 기록을 찾습니다.', '유사 기항', 'home_cases'),
+        (q3, '03  크게 낮아질 가능성은?', '기준 작업률보다 10% 넘게 낮을 확률을 참고합니다. 새 모델은 아직 검증 단계입니다.', '효율저하 위험', 'home_risk'),
     ]:
         with col, st.container(border=True):
             st.markdown(f'**{title}**')

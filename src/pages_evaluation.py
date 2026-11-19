@@ -62,7 +62,7 @@ def aggregate_wape(groups: pd.DataFrame) -> float:
 
 
 def render_learning(D: dict, META: dict) -> None:
-    page_header("04 / 운영학습", "평온할 때의 개선과 강풍 대응의 개선을 구분합니다",
+    page_header("06 / 운영학습", "평온할 때의 개선과 강풍 대응의 개선을 구분합니다",
                 "같은 2022–2024년을 비교합니다. 작업효율은 총작업량 ÷ 전체 접안시간입니다.",
                 kind="연도별 분석")
     target = st.selectbox("확인할 터미널", TERMINALS, key="learning_page_terminal")
@@ -179,7 +179,7 @@ def render_learning(D: dict, META: dict) -> None:
 
 
 def render_validation(D: dict, META: dict) -> None:
-    page_header("05 / 예측 검증", "실제 2025년 자료에서 예측오차를 확인합니다",
+    page_header("07 / 예측 검증", "실제 2025년 자료에서 예측오차를 확인합니다",
                 "2020–2024년 학습을 마친 비GT 모델을 고정해 평가했습니다. 오차 막대가 짧을수록 실제값에 가깝습니다.",
                 kind="미학습 자료 평가")
     selected = st.selectbox("성능을 확인할 터미널", ["전체"] + TERMINALS, key="validation_page_terminal")

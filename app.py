@@ -13,6 +13,7 @@ from pages_prediction import render_prediction
 from pages_research import render_weather, render_terminals
 from pages_evaluation import render_learning, render_validation
 from pages_plan import render_plan
+from pages_decision import render_cases, render_risk
 
 st.set_page_config(page_title='PORTaI | 항만 작업과 날씨, 한눈에', page_icon='⚓', layout='wide', initial_sidebar_state='expanded')
 install_style()
@@ -28,10 +29,12 @@ def model(use_gt=False):
     return load_model(use_gt)
 
 
-PAGES = ['한눈에 보기', 'AI 예측', '악천후 영향', '터미널 현황', '운영학습', '예측 검증', '개선 계획']
+PAGES = ['한눈에 보기', 'AI 예측', '유사 기항', '효율저하 위험', '악천후 영향', '터미널 현황', '운영학습', '예측 검증', '개선 계획']
 PAGE_DESCRIPTIONS = {
     '한눈에 보기': '핵심 결과와 다음 질문',
     'AI 예측': '입력한 조건의 예상 작업률',
+    '유사 기항': '가까운 과거 사례와 결과 분포',
+    '효율저하 위험': '큰 작업률 저하의 탐색적 확률',
     '악천후 영향': '운영조건을 보정한 기상 차이',
     '터미널 현황': '분석 대상의 규모와 분포',
     '운영학습': '시간이 흐르며 달라진 효율',
@@ -56,6 +59,10 @@ if page == '한눈에 보기':
     render_overview(D, META, navigate)
 elif page == 'AI 예측':
     render_prediction(D, META, model)
+elif page == '유사 기항':
+    render_cases(D, META, navigate)
+elif page == '효율저하 위험':
+    render_risk(D, META, navigate)
 elif page == '악천후 영향':
     render_weather(D, META)
 elif page == '터미널 현황':

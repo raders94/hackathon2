@@ -1,0 +1,381 @@
+{
+  "version": 1,
+  "source_file": "vessels_all_nonGT_2020_2025.pkl.gz",
+  "source_sha256": "4c66f8d3252596b39f2f5795505168a7310e4d69e12464eef25afee44222c459",
+  "timezone": "Asia/Seoul (source-naive timestamps interpreted as KST)",
+  "supported_query_from": "2023-01-01T00:00:00",
+  "index_rows": 48155,
+  "input_rows": 56791,
+  "excluded_rows": 8636,
+  "filters": {
+    "positive_cargo": true,
+    "duration_gt_hours": 6,
+    "complete_nonnegative_wind_wave": true,
+    "positive_visibility": true,
+    "positive_finite_outcomes": true,
+    "weather_observation_no_later_than_start": true,
+    "additional_p99_trim": false
+  },
+  "rows_by_terminal": {
+    "BCT": 2777,
+    "BNCT": 4129,
+    "BPTC_G": 9058,
+    "BPT_S": 17726,
+    "HPNT": 3557,
+    "PNC": 7416,
+    "PNIT": 3492
+  },
+  "departure_source_counts": {
+    "실제 출항": 26782,
+    "예정 출항 대체": 21373
+  },
+  "departure_source_counts_by_terminal": {
+    "BCT": {
+      "예정 출항 대체": 2777
+    },
+    "BNCT": {
+      "예정 출항 대체": 4129
+    },
+    "BPTC_G": {
+      "실제 출항": 9058
+    },
+    "BPT_S": {
+      "실제 출항": 17724,
+      "예정 출항 대체": 2
+    },
+    "HPNT": {
+      "예정 출항 대체": 3557
+    },
+    "PNC": {
+      "예정 출항 대체": 7416
+    },
+    "PNIT": {
+      "예정 출항 대체": 3492
+    }
+  },
+  "start_min": "2020-01-01T01:35:00",
+  "start_max": "2025-12-30T21:30:00",
+  "calculated_end_min": "2020-01-01T12:00:00",
+  "calculated_end_max": "2025-12-31T17:00:00",
+  "scale_fit": {
+    "start_inclusive": "2020-01-01T00:00:00",
+    "end_exclusive": "2023-01-01T00:00:00",
+    "rows": 21084,
+    "rows_by_terminal": {
+      "BCT": 268,
+      "BNCT": 1800,
+      "BPTC_G": 4491,
+      "BPT_S": 7887,
+      "HPNT": 1545,
+      "PNC": 3545,
+      "PNIT": 1548
+    },
+    "definition": "start >= start_inclusive AND calculated end < end_exclusive; same index validity filters"
+  },
+  "distance": {
+    "method": "weighted_root_mean_squared_input_distance",
+    "weights": {
+      "log_cargo": 0.3,
+      "wind": 0.25,
+      "wave": 0.2,
+      "log_visibility": 0.15,
+      "month": 0.05,
+      "hour": 0.05
+    },
+    "numeric_transforms": {
+      "log_cargo": "natural log(cargo)",
+      "wind": "wind m/s",
+      "wave": "significant wave height m",
+      "log_visibility": "natural log(1 + visibility_m)"
+    },
+    "numeric_scaling": "absolute query-minus-case difference / terminal training IQR; pooled training IQR only if terminal IQR is zero",
+    "cyclic_formula": "abs(sin(pi * (case - query) / period)); period=12 for month,24 for fractional hour; one weight per cyclic group",
+    "unit": "dimensionless weighted IQR/chord distance; smaller means more similar",
+    "default_max_distance": 1.0,
+    "threshold_is_validated_probability": false,
+    "target_fields_excluded": [
+      "duration_h",
+      "work_per_hour"
+    ],
+    "other_excluded_fields": [
+      "arrival_prev6",
+      "shift_ratio",
+      "GT",
+      "ship_name",
+      "ship_id"
+    ]
+  },
+  "scales_by_terminal": {
+    "BCT": {
+      "log_cargo": {
+        "scale": 1.3717990034763865,
+        "iqr": 1.3717990034763865,
+        "q25": 4.99381086075017,
+        "median": 5.760466658185878,
+        "q75": 6.365609864226556,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 268
+      },
+      "wind": {
+        "scale": 1.64,
+        "iqr": 1.64,
+        "q25": 1.09,
+        "median": 1.91,
+        "q75": 2.73,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 268
+      },
+      "wave": {
+        "scale": 0.2,
+        "iqr": 0.2,
+        "q25": 0.3,
+        "median": 0.3,
+        "q75": 0.5,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 268
+      },
+      "log_visibility": {
+        "scale": 0.5090651359527385,
+        "iqr": 0.5090651359527385,
+        "q25": 10.310733148257547,
+        "median": 10.819798284210286,
+        "q75": 10.819798284210286,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 268
+      }
+    },
+    "BNCT": {
+      "log_cargo": {
+        "scale": 0.9295508991377934,
+        "iqr": 0.9295508991377934,
+        "q25": 6.788690052821522,
+        "median": 7.301822114791679,
+        "q75": 7.718240951959316,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1800
+      },
+      "wind": {
+        "scale": 1.8025,
+        "iqr": 1.8025,
+        "q25": 1.26,
+        "median": 1.975,
+        "q75": 3.0625,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1800
+      },
+      "wave": {
+        "scale": 0.2,
+        "iqr": 0.2,
+        "q25": 0.3,
+        "median": 0.3,
+        "q75": 0.5,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1800
+      },
+      "log_visibility": {
+        "scale": 0.6379795721821448,
+        "iqr": 0.6379795721821448,
+        "q25": 10.181818712028141,
+        "median": 10.789648786664841,
+        "q75": 10.819798284210286,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1800
+      }
+    },
+    "BPTC_G": {
+      "log_cargo": {
+        "scale": 0.6228479731589385,
+        "iqr": 0.6228479731589385,
+        "q25": 5.948034989180646,
+        "median": 6.263398262591624,
+        "q75": 6.570882962339584,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 4491
+      },
+      "wind": {
+        "scale": 2.0,
+        "iqr": 2.0,
+        "q25": 1.0,
+        "median": 1.9,
+        "q75": 3.0,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 4491
+      },
+      "wave": {
+        "scale": 0.39999999999999997,
+        "iqr": 0.39999999999999997,
+        "q25": 0.3,
+        "median": 0.5,
+        "q75": 0.7,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 4491
+      },
+      "log_visibility": {
+        "scale": 0.9570806442173687,
+        "iqr": 0.9570806442173687,
+        "q25": 9.862717639992917,
+        "median": 10.454811918581997,
+        "q75": 10.819798284210286,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 4491
+      }
+    },
+    "BPT_S": {
+      "log_cargo": {
+        "scale": 0.6690845004794754,
+        "iqr": 0.6690845004794754,
+        "q25": 5.849324779946859,
+        "median": 6.22455842927536,
+        "q75": 6.518409280426335,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 7887
+      },
+      "wind": {
+        "scale": 2.0,
+        "iqr": 2.0,
+        "q25": 1.0,
+        "median": 1.9,
+        "q75": 3.0,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 7887
+      },
+      "wave": {
+        "scale": 0.39999999999999997,
+        "iqr": 0.39999999999999997,
+        "q25": 0.3,
+        "median": 0.5,
+        "q75": 0.7,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 7887
+      },
+      "log_visibility": {
+        "scale": 0.9628259854156269,
+        "iqr": 0.9628259854156269,
+        "q25": 9.856972298794659,
+        "median": 10.467977158387665,
+        "q75": 10.819798284210286,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 7887
+      }
+    },
+    "HPNT": {
+      "log_cargo": {
+        "scale": 1.162292139131166,
+        "iqr": 1.162292139131166,
+        "q25": 6.68586094706836,
+        "median": 7.3632795869630385,
+        "q75": 7.848153086199526,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1545
+      },
+      "wind": {
+        "scale": 1.7899999999999998,
+        "iqr": 1.7899999999999998,
+        "q25": 1.26,
+        "median": 2.03,
+        "q75": 3.05,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1545
+      },
+      "wave": {
+        "scale": 0.2,
+        "iqr": 0.2,
+        "q25": 0.3,
+        "median": 0.3,
+        "q75": 0.5,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1545
+      },
+      "log_visibility": {
+        "scale": 0.6036555981564771,
+        "iqr": 0.6036555981564771,
+        "q25": 10.216142686053809,
+        "median": 10.805090951658405,
+        "q75": 10.819798284210286,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1545
+      }
+    },
+    "PNC": {
+      "log_cargo": {
+        "scale": 1.276889591109505,
+        "iqr": 1.276889591109505,
+        "q25": 6.553933404025811,
+        "median": 7.283448228756631,
+        "q75": 7.830822995135316,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 3545
+      },
+      "wind": {
+        "scale": 1.87,
+        "iqr": 1.87,
+        "q25": 1.23,
+        "median": 2.01,
+        "q75": 3.1,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 3545
+      },
+      "wave": {
+        "scale": 0.2,
+        "iqr": 0.2,
+        "q25": 0.3,
+        "median": 0.3,
+        "q75": 0.5,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 3545
+      },
+      "log_visibility": {
+        "scale": 0.6106291271139774,
+        "iqr": 0.6106291271139774,
+        "q25": 10.209169157096309,
+        "median": 10.806713308080846,
+        "q75": 10.819798284210286,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 3545
+      }
+    },
+    "PNIT": {
+      "log_cargo": {
+        "scale": 1.0687589713670578,
+        "iqr": 1.0687589713670578,
+        "q25": 6.97891043728531,
+        "median": 7.617759093184393,
+        "q75": 8.047669408652368,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1548
+      },
+      "wind": {
+        "scale": 1.8099999999999998,
+        "iqr": 1.8099999999999998,
+        "q25": 1.24,
+        "median": 1.9249999999999998,
+        "q75": 3.05,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1548
+      },
+      "wave": {
+        "scale": 0.2,
+        "iqr": 0.2,
+        "q25": 0.3,
+        "median": 0.3,
+        "q75": 0.5,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1548
+      },
+      "log_visibility": {
+        "scale": 0.6320345054653416,
+        "iqr": 0.6320345054653416,
+        "q25": 10.187763778744944,
+        "median": 10.795710976276323,
+        "q75": 10.819798284210286,
+        "scale_source": "terminal_training_IQR",
+        "reference_n": 1548
+      }
+    }
+  },
+  "departure_basis": "원자료 출항기준(예정대체포함)",
+  "availability_caveat": "계산용 출항시각을 기준시각 이전으로 제한한 후향 검색입니다. 예정 출항 대체가 포함되어 실제 작업 완료나 자료의 당시 공개·확정 여부를 보증하지 않습니다.",
+  "cargo_caveat": "과거 최종 작업량이 포함됩니다. 접안 전에는 계획 작업량의 확보와 그 차이에 대한 전향 검증이 필요합니다.",
+  "cohort_caveat": "접안 후 체류시간 >6시간 및 접안시점 기상 완전관측 기항에 한정됩니다. 2025년 이벤트시각 기상 기록의 선택성을 포함합니다.",
+  "privacy_note": "선박명·원본 선박ID를 제외한 순번 case_id만 포함하지만 기항별 시각·작업량은 남아 있습니다."
+}

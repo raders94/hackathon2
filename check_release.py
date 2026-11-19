@@ -1,4 +1,4 @@
-"""PORTCAST release health check. Does not require Streamlit or access to raw data."""
+"""PORTaI release health check. Does not require Streamlit or access to raw data."""
 from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +12,13 @@ A=ROOT/'assets'
 
 def main():
     required=['app.py','requirements.txt','.streamlit/config.toml','src/logic.py',
+              'src/ui.py','src/pages_overview.py','src/pages_prediction.py',
+              'src/pages_research.py','src/pages_evaluation.py','src/pages_plan.py',
+              'src/pages_decision.py','src/case_search.py','src/risk_engine.py',
+              'assets/case_search/case_index.csv.gz','assets/case_search/metadata.json',
+              'assets/risk/risk_classifier_2023.cbm','assets/risk/metadata.json',
+              'assets/risk/evaluation_by_terminal_2025.csv',
+              'tools/check_decision_features.py',
               'src/explainability.py','src/digital_twin_lab.py','assets/throughput_nonGT_2020_2024.cbm',
               'assets/throughput_GT_2020_2024.cbm',
               'assets/modelb_weather_residual_effects.csv','assets/learning_annual_slopes.csv',
@@ -57,8 +64,10 @@ def main():
     assert abs(test.p-.909821)<.001
     non_gt=pd.read_csv(A/'validation_severity_2025.csv')
     assert int(non_gt[(non_gt.terminal=='전체')].n.sum())==7664
-    print('PASS: required files, no raw history, both CatBoost models, forecasts, both SHAP checks, Model B, trend, 2025 validation')
+    print('PASS: required files, no source pickle, both original CatBoost models, forecasts, SHAP, Model B, trend, 2025 validation')
     print(f'BCT scenario total={result["aggregate"]:.3f}/h; Model B wind={bct.adjusted_eff_change_pct:.2f}%; trend p={bct_t.p_slope:.3f}; peer p={test.p:.3f}')
+    import runpy
+    runpy.run_path(str(ROOT/'tools/check_decision_features.py'), run_name='__main__')
     return 0
 
 if __name__=='__main__':raise SystemExit(main())
