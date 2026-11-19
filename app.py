@@ -51,7 +51,7 @@ with st.sidebar:
     st.markdown('<div class="brand">PORT<span>aI</span></div><div class="brand-sub">항만 작업과 날씨, 한눈에</div>', unsafe_allow_html=True)
     page = st.radio('분야 선택', PAGES, key='portai_page', label_visibility='collapsed')
     st.caption(PAGE_DESCRIPTIONS[page])
-    st.markdown('<div class="nav-foot"><b>분석 범위</b><br>부산항 7개 터미널<br>2020–2025년 운영자료<br><br><b>화면 읽는 법</b><br>그림의 길이 = 값의 크기<br>색과 문구 = 결과의 의미<br><br>작업률 = 총작업량 ÷ 접안 후 체류시간</div>', unsafe_allow_html=True)
+    st.markdown('<div class="nav-foot"><b>분석 범위</b><br>부산항 7개 터미널<br>2020–2025년 운영자료<br><br><b>화면 읽는 법</b><br>점의 위치 = 값 · 면적 = 표본수<br>색 = 차이의 방향 또는 범주<br>분포의 폭 = 관측값의 밀집도<br><br>각 그림의 범례로 기준을 확인하세요.<br>작업률 = 총작업량 ÷ 접안 후 체류시간</div>', unsafe_allow_html=True)
 
 D = source_data()
 META = metadata()

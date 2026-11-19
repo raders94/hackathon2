@@ -10,6 +10,7 @@ import streamlit as st
 from logic import (Scenario, TERMINALS, HARBOR, calm_for, defaults_for, occupancy_for,
                    congestion_count, category, model_row, estimate, error_range)
 from explainability import explain_prediction, compare_weather_attributions
+from prediction_visuals import prediction_pair, shap_waterfall
 from ui import page_header, takeaway, metrics, chart, section, source_note, BLUE, TEAL, CORAL, SLATE
 
 
@@ -110,16 +111,7 @@ def render_prediction(D, META, model):
             {'label': '날씨만 평온하게 바꾼 기준', 'value': f'{result["normal"]:.1f} /h', 'note': '작업량·터미널·시간·혼잡은 동일', 'tone': 'blue'},
             {'label': '평온 기준과의 차이', 'value': f'{change:+.2f}%', 'note': '확정적인 기상 원인·손실률이 아닙니다.', 'tone': tone},
         ])
-        fig = go.Figure(go.Bar(
-            x=[result['normal'], result['vessel']], y=['평온 기준', '선택한 날씨'], orientation='h',
-            marker_color=[BLUE, selected_color], width=.52,
-            text=[f'{result["normal"]:.1f} /h', f'{result["vessel"]:.1f} /h'], textposition='outside', cliponaxis=False,
-            hovertemplate='%{y}: %{x:.2f} 작업단위/h<extra></extra>'))
-        fig.update_layout(height=230, title='막대가 짧을수록 예상 평균 작업률이 낮습니다',
-                          xaxis_title='선박당 평균 작업률 · 원자료 작업단위/h', yaxis_title='',
-                          xaxis_range=[0, max(result['normal'], result['vessel']) * 1.2],
-                          yaxis=dict(autorange='reversed'), margin=dict(t=55, b=45, l=12, r=25), showlegend=False)
-        chart(fig)
+        chart(prediction_pair(result, selected_color))
         level, flags = category(scenario, D['weather_thresholds'])
         label = ' · '.join(flags) if flags else '세 기상요소 모두 P90 기준 미만'
         st.caption(f'현재 기상 분류: {label}. P90/P95는 과거 관측분포 기준이며 장비 안전정지 기준이 아닙니다.')
@@ -129,25 +121,14 @@ def render_prediction(D, META, model):
     if use_gt:
         st.info('GT 포함 역사모형에는 2025년 독립 검증 결과가 없습니다. ‘예측 검증’ 화면은 GT 미포함 모형의 성능입니다.')
 
-    section('이 예측값을 올리거나 낮춘 입력', '막대의 방향과 길이는 모델 예측에 대한 SHAP 기여도입니다. 실제 원인의 크기를 뜻하지 않습니다.')
+    section('이 예측값을 올리거나 낮춘 입력', '워터폴의 청록 계단은 예측을 높이고, 주황 계단은 낮춥니다. 기여를 순서대로 더한 끝점이 현재 예측입니다.')
     explanation = explain_prediction(m, scenario, use_gt)
     scope = st.radio('설명할 입력', ['주요 입력 5개', '기상·혼잡만', '전체 입력'], horizontal=True, key='prediction_shap_scope')
     full = explanation['table']
     values = full.head(5).copy() if scope == '주요 입력 5개' else (
         full.loc[full.feature.isin(['wind', 'wave', 'vis_10m', 'arrival_prev6'])].copy() if scope == '기상·혼잡만' else full.copy())
-    values = values.sort_values('shap_log')
-    fig = go.Figure(go.Bar(
-        x=values.shap_log, y=values.label, orientation='h', marker_color=[CORAL if x < 0 else TEAL for x in values.shap_log],
-        text=[f'{x:+.3f}' for x in values.shap_log], textposition='outside', cliponaxis=False,
-        customdata=values.value, hovertemplate='%{y}<br>입력: %{customdata}<br>SHAP %{x:+.4f} log<extra></extra>'))
-    max_abs = max(float(values.shap_log.abs().max()), .01)
-    fig.add_vline(x=0, line_width=1, line_color=SLATE)
-    fig.update_layout(title='왼쪽·주황 = 낮추는 기여 / 오른쪽·청록 = 높이는 기여',
-                      xaxis_title='SHAP · log(평균 작업률) 단위', yaxis_title='', showlegend=False,
-                      height=max(280, len(values)*36+100), xaxis_range=[-max_abs*1.3, max_abs*1.3],
-                      margin=dict(t=55, b=45, l=10, r=22))
-    chart(fig)
-    st.caption('SHAP의 기준은 전체 학습분포입니다. 위 평온 기준과는 다르며, 일부 변수만 표시해도 SHAP 값은 바뀌지 않습니다.')
+    chart(shap_waterfall(explanation, values))
+    st.caption('SHAP의 기준은 학습분포이며 위 평온 기준과 다릅니다. 생략한 입력은 ‘그 외 입력’으로 합산해 예측을 정확히 재구성합니다. 세로축은 로그 기여이며 실제 손실률이 아닙니다.')
     with st.expander('정확한 SHAP 수치 · 계산 방식 · 설명 CSV'):
         st.markdown(f'**SHAP 기준값:** {explanation["base_rate"]:.2f}/h · **현재 예측 재구성:** {explanation["pred_rate"]:.2f}/h')
         table = full[['label', 'value', 'shap_log', 'multiplier_pct', 'direction']].rename(columns={

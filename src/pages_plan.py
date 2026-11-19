@@ -41,51 +41,56 @@ def _starting_case(D, model):
 
 
 def _recovery_figure(lab: TrainingLab, pct_a: int, pct_b: int):
-    """Zero-based horizontal bars keep the assumed gain proportional."""
-    names = ["현재 조건의 AI 예측", f"목표 A · {pct_a}% 회복 가정", f"목표 B · {pct_b}% 회복 가정"]
-    targets = [lab.exposed, lab.target(pct_a), lab.target(pct_b)]
-    gains = [0.0, lab.remaining_gap * pct_a / 100, lab.remaining_gap * pct_b / 100]
-    gaps = [max(lab.baseline - target, 0.0) for target in targets]
+    """Show each assumed recovery as an accurately positioned dumbbell.
+
+    The x axis deliberately magnifies the interval between the two predictions;
+    neither endpoint, segment length, nor marker area implies an observed gain.
+    """
+    names = [f"목표 A · {pct_a}% 회복 가정", f"목표 B · {pct_b}% 회복 가정"]
+    targets = [lab.target(pct_a), lab.target(pct_b)]
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=[lab.exposed] * 3, y=names, orientation="h", name="현재 조건의 예측값",
-        marker_color=CURRENT,
-        hovertemplate="%{y}<br>현재 예측 %{x:,.2f} 작업단위/h<extra></extra>",
-    ))
-    fig.add_trace(go.Bar(
-        x=gains, y=names, orientation="h", name="사용자가 가정한 회복분",
-        marker_color=ASSUMED,
-        hovertemplate="%{y}<br>가정한 회복분 +%{x:,.2f} 작업단위/h<extra></extra>",
-    ))
-    fig.add_trace(go.Bar(
-        x=gaps, y=names, orientation="h", name="평온 기준까지 남은 차이",
-        marker_color=REMAINING,
-        hovertemplate="%{y}<br>남은 차이 %{x:,.2f} 작업단위/h<extra></extra>",
-    ))
-    top = max([lab.baseline, *targets])
-    # Totals are printed in a separate, aligned column. Tiny recovery segments
-    # retain their true width instead of expanding to fit a number.
     for name, target in zip(names, targets):
-        fig.add_annotation(
-            x=top * 1.035, y=name, text=f"<b>{target:,.1f}</b>",
-            showarrow=False, xanchor="left", font=dict(size=17, color="#193C50"),
-        )
-    fig.add_vline(x=lab.baseline, line_color="#436779", line_dash="dot", line_width=1.5)
-    fig.add_annotation(
-        x=lab.baseline, y=1.11, xref="x", yref="paper",
-        text=f"평온 기준 {lab.baseline:,.1f}", showarrow=False,
-        xanchor="right", font=dict(size=12, color="#436779"),
-    )
+        fig.add_trace(go.Scatter(
+            x=[lab.exposed, lab.baseline], y=[name, name], mode="lines",
+            line=dict(color=REMAINING, width=11), hoverinfo="skip", showlegend=False,
+        ))
+        fig.add_trace(go.Scatter(
+            x=[lab.exposed, target], y=[name, name], mode="lines",
+            line=dict(color=ASSUMED, width=11), hoverinfo="skip", showlegend=False,
+        ))
+    fig.add_trace(go.Scatter(
+        x=[lab.exposed] * 2, y=names, mode="markers", name="현재 조건의 예측",
+        marker=dict(size=22, color=CURRENT, line=dict(color="white", width=2)),
+        hovertemplate="현재 조건의 AI 예측<br>%{x:,.2f} 작업단위/h<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=[lab.baseline] * 2, y=names, mode="markers", name="평온 기준 예측",
+        marker=dict(size=24, color="white", line=dict(color="#436779", width=2.5)),
+        hovertemplate="평온 조건의 AI 예측<br>%{x:,.2f} 작업단위/h<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=targets, y=names, mode="markers+text", name="사용자 가정 목표",
+        marker=dict(size=18, color=ASSUMED, symbol="diamond", line=dict(color="white", width=2)),
+        text=[f"<b>{target:,.2f} /h</b><br>가정 회복 +{target-lab.exposed:,.2f} /h" for target in targets],
+        textposition="top center", textfont=dict(color="#9F6D16", size=13), cliponaxis=False,
+        customdata=[[target-lab.exposed, pct] for target, pct in zip(targets, [pct_a, pct_b])],
+        hovertemplate="%{y}<br>가정 목표 %{x:,.2f} 작업단위/h<br>가정 회복 +%{customdata[0]:,.2f} /h<extra></extra>",
+    ))
+    span = max(abs(lab.baseline-lab.exposed), max(lab.exposed, lab.baseline)*.035, .1)
+    low = min(lab.exposed, lab.baseline) - span*.35
+    high = max(lab.exposed, lab.baseline) + span*.35
+    fig.add_vline(x=lab.exposed, line_color=CURRENT, line_width=1, line_dash="dot", opacity=.5)
+    fig.add_vline(x=lab.baseline, line_color="#436779", line_width=1, line_dash="dot", opacity=.5)
     fig.update_layout(
-        barmode="stack", height=340,
-        margin=dict(t=50, b=50, l=12, r=18),
-        xaxis_title="선박당 평균 작업률 · 원자료 작업단위/h",
+        height=355, margin=dict(t=45, b=65, l=12, r=30),
+        xaxis_title="선박당 평균 작업률 (/h) · 두 예측 사이의 차이를 확대해 표시",
         yaxis_title=None,
-        legend=dict(orientation="h", y=-0.25, x=0, font=dict(size=11)),
-        hovermode="closest", bargap=0.45,
+        legend=dict(orientation="h", y=-.28, x=0, font=dict(size=11)),
+        hovermode="closest",
     )
-    fig.update_xaxes(range=[0, top * 1.18], zeroline=False)
-    fig.update_yaxes(autorange="reversed")
+    fig.update_xaxes(range=[low, high], zeroline=False, tickformat=".1f")
+    fig.update_yaxes(type="category", categoryorder="array", categoryarray=names,
+                     autorange="reversed", showgrid=False)
     return fig
 
 
@@ -179,7 +184,7 @@ def render_plan(D, META, model):
     ])
     chart(_recovery_figure(lab, pct_a, pct_b))
     st.caption(
-        "막대는 모두 0에서 시작하는 같은 눈금입니다. 청록=현재 예측, 노랑=가정한 회복분, 옅은 회색=평온 기준까지 남은 차이. "
+        "두 예측 사이의 차이를 확대했습니다. 청록 원=현재 예측, 노란 마름모=가정 목표, 빈 원=평온 기준입니다. 노란 구간은 가정한 회복분입니다. "
         "회복 40%는 작업률 40% 상승이 아니라 두 예측값 사이 차이의 40%입니다."
     )
 

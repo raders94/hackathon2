@@ -1,12 +1,35 @@
 """Opening screen with proportional graphics and direct navigation."""
 from html import escape
+from math import sqrt
 import streamlit as st
 from ui import section, source_note, BLUE, TEAL, CORAL, SLATE
 
 
-def _bar(label, value, max_value, text, color):
-    width = max(0, min(100, value / max_value * 100))
-    return f'<div class="mini-label"><span>{escape(label)}</span><b>{escape(text)}</b></div><div class="bar-track"><div class="bar-fill" style="width:{width:.4f}%;background:{color}"></div></div>'
+def _efficiency_bubbles(effect):
+    value = 100 + float(effect)
+    radius = 37 * sqrt(max(0, value) / 100)
+    return f'''<svg class="mini-viz" viewBox="0 0 280 148" role="img" aria-label="강풍 0회 효율지수 100, 고노출 {value:.2f}. 원의 면적이 지수에 비례합니다.">
+    <circle cx="73" cy="56" r="37" fill="{BLUE}" fill-opacity=".13" stroke="{BLUE}" stroke-width="2"/>
+    <circle cx="207" cy="56" r="{radius:.3f}" fill="{CORAL}" fill-opacity=".19" stroke="{CORAL}" stroke-width="2"/>
+    <text x="73" y="62" text-anchor="middle" fill="{BLUE}" font-size="20" font-weight="800">100</text>
+    <text x="207" y="62" text-anchor="middle" fill="{CORAL}" font-size="20" font-weight="800">{value:.1f}</text>
+    <text x="73" y="113" text-anchor="middle" fill="#60778B" font-size="12">강풍 0회</text>
+    <text x="207" y="113" text-anchor="middle" fill="#60778B" font-size="12">강풍 4–6회</text>
+    <text x="140" y="137" text-anchor="middle" fill="#7D8FA0" font-size="10">원의 면적 ∝ 조정 효율지수 · 비교군 = 100</text></svg>'''
+
+
+def _error_dots(groups):
+    body = '<svg class="mini-viz" viewBox="0 0 280 148" role="img" aria-label="기상등급별 WAPE를 0~25% 공통 축에서 비교합니다.">'
+    for i, (condition, label, color) in enumerate([
+        ('P90 미만', 'P90 미만', BLUE),
+        ('P90 이상·P95 미만', 'P90~P95', '#7468D9'),
+        ('P95 이상', 'P95 이상', CORAL),
+    ]):
+        value = float(groups.loc[groups.severity == condition, 'wape_pct'].iloc[0])
+        x, y = 88 + value / 25 * 138, 29 + i * 34
+        body += f'<text x="0" y="{y+4}" fill="#60778B" font-size="11">{label}</text><path d="M88 {y}H226" stroke="#E4EDF4" stroke-width="3"/><circle cx="{x:.3f}" cy="{y}" r="6" fill="{color}"/><text x="277" y="{y+4}" text-anchor="end" fill="{color}" font-size="11" font-weight="750">{value:.2f}%</text>'
+    body += '<text x="88" y="130" text-anchor="middle" fill="#7D8FA0" font-size="10">0</text><text x="226" y="130" text-anchor="middle" fill="#7D8FA0" font-size="10">25%</text></svg>'
+    return body
 
 
 def render_overview(D, META, navigate):
@@ -20,27 +43,23 @@ def render_overview(D, META, navigate):
     c1, c2, c3 = st.columns(3, gap='medium')
     with c1, st.container(border=True):
         html = f'<div class="result-card" style="--tone:{CORAL}"><span class="tag">악천후 영향 · 관측 분석</span><h3>BCT 강풍 고노출군의<br>작업효율이 낮았습니다</h3><div class="big-result">{b.adjusted_eff_change_pct:+.2f}%</div><p>첫 6회 관측 중 강풍 4–6회 vs 0회<br>작업량·선박 크기·운영조건 보정</p>'
-        html += _bar('강풍 0회 · 비교 기준', 100, 100, '100', BLUE)
-        html += _bar('강풍 4–6회', 100 + b.adjusted_eff_change_pct, 100, f'{100+b.adjusted_eff_change_pct:.1f}', CORAL)
-        html += '<div class="mini-note">기준을 100으로 둔 조정 효율비율 그림<br>기상 원인을 확정한 손실률은 아닙니다.</div></div>'
+        html += _efficiency_bubbles(b.adjusted_eff_change_pct)
+        html += '<div class="mini-note">관측자료의 조정 연관성입니다.<br>기상 원인을 확정한 손실률은 아닙니다.</div></div>'
         st.markdown(html, unsafe_allow_html=True)
         st.button('악천후 영향 자세히 →', key='home_weather', on_click=navigate, args=('악천후 영향',), width='stretch')
     with c2, st.container(border=True):
         html = f'<div class="result-card" style="--tone:{BLUE}"><span class="tag">예측 검증 · 2025년 평가</span><h3>새 연도 자료에서<br>예측오차를 확인했습니다</h3><div class="big-result">{wape:.2f}%</div><p>전체 상대 예측오차 · WAPE<br>미학습 2025년 {int(s.n.sum()):,}건</p>'
-        for cond, label, color in [('P90 미만', 'P90 미만', BLUE), ('P90 이상·P95 미만', 'P90~P95 사이', BLUE), ('P95 이상', '심한 기상 · P95 이상', CORAL)]:
-            value = float(s.loc[s.severity == cond, 'wape_pct'].iloc[0])
-            html += _bar(label, value, 25, f'{value:.2f}%', color)
-        html += '<div class="mini-note">세 막대 모두 0~25% 눈금 · 짧을수록 오차가 작음<br>정확도를 뜻하는 비율이 아닙니다.</div></div>'
+        html += _error_dots(s)
+        html += '<div class="mini-note">세 점 모두 0~25% 눈금 · 왼쪽일수록 오차가 작음<br>정확도를 뜻하는 비율이 아닙니다.</div></div>'
         st.markdown(html, unsafe_allow_html=True)
         st.button('예측 검증 자세히 →', key='home_validation', on_click=navigate, args=('예측 검증',), width='stretch')
     with c3, st.container(border=True):
         html = f'<div class="result-card" style="--tone:{SLATE}"><span class="tag">운영학습 · 연도별 분석</span><h3>평온 효율은 개선,<br>강풍 대응 개선은 미확인</h3><div class="big-result">추가 검증 필요</div><p>BCT 평온 작업효율은 {calm.change_pct:+.2f}%<br>2024년 vs 2022년 · 운영조건 보정</p>'
-        html += _bar('평온 · 2022년 기준', 100, 130, '100', BLUE)
-        html += _bar('평온 · 2024년', 100 + calm.change_pct, 130, f'{100+calm.change_pct:.1f}', TEAL)
-        html += f'<div class="mini-note">평온 지수는 같은 0~130 눈금<br>강풍 대응의 연간 개선은 미확인 · p={slope.p_slope:.3f}</div></div>'
+        html += f'<div class="evidence-grid"><div class="evidence-tile"><span>평온조건 개선</span><strong style="color:{TEAL}">{calm.change_pct:+.2f}%</strong><em>2024년 vs 2022년</em></div><div class="evidence-tile"><span>강풍 대응 추세</span><strong style="color:{SLATE}">미확인</strong><em>p = {slope.p_slope:.3f}</em></div></div>'
+        html += '<div class="mini-note">평온 효율의 개선과 강풍 대응력은<br>각각 다른 질문으로 검증했습니다.</div></div>'
         st.markdown(html, unsafe_allow_html=True)
         st.button('운영학습 자세히 →', key='home_learning', on_click=navigate, args=('운영학습',), width='stretch')
-    st.caption('각 카드의 막대는 해당 카드 안에서 같은 기준으로 비교합니다. 카드 간에는 지표와 눈금이 다릅니다.')
+    st.caption('왼쪽은 원의 면적, 가운데는 점의 위치로 비교합니다. 카드마다 지표와 기준이 다르며 각 그림의 범례를 따릅니다.')
     section('같은 조건을 세 가지로 살펴보세요', '평균 작업률 예측 → 실제 과거 사례 → 큰 효율저하의 참고용 위험 확률. 분야별 화면에서 근거를 확인합니다.')
     q1, q2, q3 = st.columns(3)
     for col, title, desc, target, key in [

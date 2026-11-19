@@ -1,14 +1,14 @@
-"""Shared, restrained visual language for the PORTaI dashboard."""
+"""Shared visual language for PORTaI's statistical and interactive charts."""
 from __future__ import annotations
 from html import escape
 import streamlit as st
 
-NAVY = '#183548'
-BLUE = '#527C9C'
-TEAL = '#138A81'
-CORAL = '#D66A4D'
-AMBER = '#D59A32'
-SLATE = '#8B98A5'
+NAVY = '#15374F'
+BLUE = '#367DD5'
+TEAL = '#079A8A'
+CORAL = '#E57259'
+AMBER = '#DCA643'
+SLATE = '#8898AC'
 PALETTE = {'blue': BLUE, 'teal': TEAL, 'coral': CORAL, 'amber': AMBER, 'slate': SLATE}
 
 CSS = '''<style>
@@ -61,6 +61,39 @@ CSS = '''<style>
 .stCaption {line-height:1.6;}
 .port-footer {border-top:1px solid #e0e7eb;color:#6f8491;font-size:.74rem;line-height:1.7;margin-top:26px;padding-top:15px;}
 @media(max-width:850px) {.block-container{padding-top:1rem;} .metric-grid{grid-template-columns:1fr;} .metric-card{padding:14px 17px;} .home-intro .port-icon{display:none;} .home-intro h1{font-size:1.8rem;} .page-top h1{font-size:1.65rem;}}
+/* More vivid structure, with one visual purpose for each colour. */
+.stApp {background:linear-gradient(140deg,#f1f6fc 0%,#f7fafc 60%,#eff7f6 100%);}
+.block-container {max-width:1440px;}
+[data-testid="stSidebar"] {box-shadow:4px 0 28px rgba(24,53,72,.035);}
+.brand {color:#15374F;}
+.page-top {padding:20px 24px 21px;border-radius:16px;border:1px solid #dce7f1;border-top:4px solid #367DD5;background:linear-gradient(105deg,#fff 45%,#ecf5fb);box-shadow:0 5px 20px rgba(30,69,100,.035);}
+.page-top .overline {letter-spacing:.02em;color:#52718a;}
+.page-top h1 {font-weight:850;}
+.tag {border-radius:20px;background:#edf6f7;padding:5px 11px;}
+.home-intro {padding:28px 30px;border:0;border-radius:20px;background:linear-gradient(115deg,#12334d 0%,#174b62 66%,#116f74 100%);box-shadow:0 14px 30px rgba(21,55,79,.13);min-height:212px;}
+.home-intro h1 {color:white;font-size:clamp(1.9rem,3vw,2.7rem);letter-spacing:-.045em;}
+.home-intro p {color:#d6e9f0;font-size:.92rem;}
+.home-intro .tag {background:rgba(192,240,239,.13);border:1px solid rgba(180,229,231,.22);color:#c4efed;}
+.home-intro .port-icon {width:184px;filter:drop-shadow(0 9px 12px rgba(0,0,0,.11));}
+.metric-card {border-top:3px solid var(--tone);background:linear-gradient(130deg,white,#fbfdff);box-shadow:0 5px 16px rgba(26,61,86,.04);border-radius:14px;}
+.metric-card .metric-value {font-variant-numeric:tabular-nums;}
+.takeaway {border-left-width:5px;box-shadow:0 4px 16px rgba(29,64,87,.035);}
+.result-card {min-height:390px;}
+.result-card h3 {margin-top:14px;}
+.result-card .big-result {font-size:clamp(1.65rem,2.2vw,2.4rem);}
+.result-card .mini-note {margin-top:5px;}
+.mini-viz {width:100%;height:148px;display:block;overflow:visible;}
+.evidence-grid {display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:17px 0 18px;}
+.evidence-tile {border:1px solid #dfebef;background:#f4f9fb;border-radius:12px;padding:17px 10px;text-align:center;}
+.evidence-tile span {display:block;color:#667f90;font-size:.71rem;margin-bottom:9px;}
+.evidence-tile strong {font-size:1.28rem;font-weight:850;}
+.evidence-tile em {font-size:.7rem;font-style:normal;color:#708496;display:block;margin-top:8px;}
+.section-heading {margin-top:26px;padding-top:2px;}
+[data-testid="stVerticalBlockBorderWrapper"] > div {background:#fff;box-shadow:0 4px 16px rgba(24,53,72,.035);}
+[data-testid="stPlotlyChart"], [data-testid="stImage"] {background:white;border:1px solid #e7eef4;border-radius:14px;padding:5px;}
+.stButton > button {transition:background .15s ease,border-color .15s ease;}
+.stButton > button:hover {border-color:#079A8A;color:#067c70;background:#f2fbf9;}
+@media(max-width:850px) {.home-intro{padding:22px}.page-top{padding:17px}.result-card{min-height:0}.evidence-grid{margin-bottom:10px}}
 </style>'''
 
 
@@ -91,6 +124,7 @@ def chart(fig, height=None):
         font=dict(family='Malgun Gothic, Apple SD Gothic Neo, Noto Sans CJK KR, sans-serif', size=13, color=NAVY),
         title_font=dict(size=16, color=NAVY), hoverlabel=dict(font_size=13),
         modebar=dict(bgcolor='rgba(255,255,255,0.8)'),
+        colorway=[BLUE, TEAL, CORAL, '#7468D9', AMBER, '#B96BA0'],
     )
     if height is not None:
         fig.update_layout(height=height)

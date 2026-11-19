@@ -23,7 +23,7 @@ PALE = "#DFE6EE"
 INK = "#17364D"
 SEVERITIES = ["P90 미만", "P90 이상·P95 미만", "P95 이상"]
 SEVERITY_NAMES = ["기준 미만<br>P90 미만", "중간 수준<br>P90 이상·P95 미만", "높은 수준<br>P95 이상"]
-SEVERITY_COLORS = [BLUE, BLUE, CORAL]
+SEVERITY_COLORS = [BLUE, "#8673B8", CORAL]
 
 
 def _table(df: pd.DataFrame) -> None:
@@ -62,7 +62,7 @@ def aggregate_wape(groups: pd.DataFrame) -> float:
 
 
 def render_learning(D: dict, META: dict) -> None:
-    page_header("06 / 운영학습", "평온할 때의 개선과 강풍 대응의 개선을 구분합니다",
+    page_header("운영학습", "평온할 때의 개선과 강풍 대응의 개선을 구분합니다",
                 "같은 2022–2024년을 비교합니다. 작업효율은 총작업량 ÷ 전체 접안시간입니다.",
                 kind="연도별 분석")
     target = st.selectbox("확인할 터미널", TERMINALS, key="learning_page_terminal")
@@ -93,46 +93,66 @@ def render_learning(D: dict, META: dict) -> None:
     ])
     left, right = st.columns([1, 1.18])
     with left:
-        section("① 평온조건에서는 얼마나 달라졌나?", "막대 길이는 조정 작업효율 지수입니다. 2022년을 100으로 맞췄습니다.")
+        section("① 평온조건의 변화를 두 점으로 비교합니다", "2022년 기준점과 2024년 추정치의 간격이 조정 작업효율 변화입니다.")
         idx = 100 + float(calm.change_pct)
-        fig = go.Figure(go.Bar(
-            x=[100, idx], y=["2022 · 기준", "2024 · 비교"], orientation="h",
-            marker_color=[PALE, TEAL if improved else (CORAL if declined else BLUE)],
-            text=["100.0", f"{idx:.1f}"], textposition="outside", cliponaxis=False,
+        result_color = TEAL if improved else (CORAL if declined else SLATE)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=[100, idx], y=[0, 0], mode="lines",
+            line=dict(color="#DCE5EB", width=12), hoverinfo="skip", showlegend=False,
+        ))
+        fig.add_trace(go.Scatter(
+            x=[100], y=[0], mode="markers+text", name="2022 기준",
+            marker=dict(size=20, color="white", line=dict(width=3, color=BLUE)),
+            text=["2022 기준<br><b>100.0</b>"], textposition="bottom center",
+            textfont=dict(size=14, color=BLUE), cliponaxis=False,
+            hovertemplate="2022년 기준 지수 100<extra></extra>",
+        ))
+        fig.add_trace(go.Scatter(
+            x=[idx], y=[0], mode="markers+text", name="2024 추정",
+            marker=dict(size=24, color=result_color, line=dict(width=2, color="white")),
+            text=[f"2024 비교<br><b>{idx:.1f}</b>"], textposition="top center",
+            textfont=dict(size=16, color=result_color), cliponaxis=False,
             error_x=dict(type="data", symmetric=False,
-                         array=[0, float(calm.ci_high_pct-calm.change_pct)],
-                         arrayminus=[0, float(calm.change_pct-calm.ci_low_pct)],
-                         color=INK, thickness=1.5, width=5),
-            hovertemplate="%{y}<br>조정 효율지수 %{x:.2f}<extra></extra>",
+                         array=[float(calm.ci_high_pct-calm.change_pct)],
+                         arrayminus=[float(calm.change_pct-calm.ci_low_pct)],
+                         color=result_color, thickness=2, width=7),
+            customdata=[[100+calm.ci_low_pct, 100+calm.ci_high_pct]],
+            hovertemplate="2024년 조정 효율지수 %{x:.2f}<br>95% CI %{customdata[0]:.2f}~%{customdata[1]:.2f}<extra></extra>",
         ))
         fig.add_vline(x=100, line_dash="dot", line_color=SLATE)
-        fig.update_layout(showlegend=False, bargap=.48, xaxis_title="조정 작업효율 지수 · 2022=100")
-        fig.update_xaxes(range=[0, max(140, 100 + float(calm.ci_high_pct) + 15)])
-        fig.update_yaxes(autorange="reversed")
+        fig.update_layout(showlegend=False, xaxis_title="조정 작업효율 지수 · 2022=100")
+        lower = min(100, 100+float(calm_all.ci_low_pct.min()))-10
+        upper = max(100, 100+float(calm_all.ci_high_pct.max()))+10
+        fig.update_xaxes(range=[lower, upper])
+        fig.update_yaxes(visible=False, range=[-.7, .7])
         chart(_base(fig, 330), height=330)
-        st.caption("가는 선은 2024년 추정치의 95% 신뢰구간입니다. 풍속·파고·시정이 모두 평온한 조건에서 비교했습니다.")
+        st.caption("가는 가로선은 2024년 추정치의 95% 신뢰구간입니다. 지수의 변화 구간을 확대해 보여주며, 풍속·파고·시정이 모두 평온한 조건의 비교입니다.")
     with right:
-        section("② 강풍에 따른 효율 차이는 줄어드나?", "점이 0%에 가까워질수록 강풍 고노출군과 0회군의 차이가 작습니다.")
+        section("② 강풍 대응의 차이와 불확실성을 함께 봅니다", "점이 0%에 가까울수록 두 노출군의 차이가 작습니다. 원의 면적은 고노출 표본 수입니다.")
+        sig = (b.ci_low_pct > 0) | (b.ci_high_pct < 0)
+        colors = [SLATE if not significant else (CORAL if value < 0 else TEAL)
+                  for significant, value in zip(sig, b.adjusted_high_eff_pct)]
+        nref = max(float(years.n_4to6.max()), 1)
         fig = go.Figure(go.Scatter(
-            x=b.year.astype(int), y=b.adjusted_high_eff_pct, mode="lines+markers+text",
-            text=[f"{v:+.1f}%<br>고노출 {int(n)}건" for v, n in zip(b.adjusted_high_eff_pct, b.n_4to6)],
-            textposition="bottom center", textfont=dict(size=13),
-            marker=dict(size=13, color=CORAL, line=dict(color="white", width=2)),
-            line=dict(color=CORAL, width=3),
-            error_y=dict(type="data", symmetric=False,
+            x=b.adjusted_high_eff_pct, y=b.year.astype(int).astype(str), mode="markers+text",
+            text=[f"{v:+.1f}% · {int(n)}건" for v, n in zip(b.adjusted_high_eff_pct, b.n_4to6)],
+            textposition="top center", textfont=dict(size=12), cliponaxis=False,
+            marker=dict(size=b.n_4to6, sizemode="area", sizeref=2*nref/34**2,
+                        color=colors, opacity=.95, line=dict(color="white", width=1.8)),
+            error_x=dict(type="data", symmetric=False,
                          array=(b.ci_high_pct-b.adjusted_high_eff_pct).to_numpy(),
                          arrayminus=(b.adjusted_high_eff_pct-b.ci_low_pct).to_numpy(),
-                         color="#DDA79E", thickness=2, width=6),
+                         color="#A5B5C4", thickness=2, width=6),
             customdata=np.column_stack([b.ci_low_pct, b.ci_high_pct, b.n_4to6]),
-            hovertemplate="%{x}년 · %{y:+.2f}%<br>95% CI %{customdata[0]:+.2f}~%{customdata[1]:+.2f}%<br>고노출 %{customdata[2]:.0f}건<extra></extra>",
+            hovertemplate="%{y}년 · %{x:+.2f}%<br>95% CI %{customdata[0]:+.2f}~%{customdata[1]:+.2f}%<br>고노출 %{customdata[2]:.0f}건<extra></extra>",
         ))
-        fig.add_hline(y=0, line_color=SLATE, line_dash="dash",
-                      annotation_text="0% · 두 집단 차이 없음", annotation_position="top right")
-        fig.update_layout(showlegend=False, yaxis_title="강풍 4–6회 vs 0회 · 조정 효율차이 (%)")
-        fig.update_xaxes(tickmode="array", tickvals=[2022, 2023, 2024], ticktext=["2022", "2023", "2024"], range=[2021.7, 2024.3])
-        fig.update_yaxes(range=[min(-25, float(years.ci_low_pct.min())-5), max(12, float(years.ci_high_pct.max())+3)])
+        fig.add_vline(x=0, line_color=SLATE, line_dash="dash")
+        fig.update_layout(showlegend=False, xaxis_title="강풍 4–6회 vs 0회 · 조정 효율차이 (%)")
+        fig.update_yaxes(type="category", categoryorder="array", categoryarray=["2022", "2023", "2024"], autorange="reversed")
+        fig.update_xaxes(range=[min(-25, float(years.ci_low_pct.min())-5), max(12, float(years.ci_high_pct.max())+3)])
         chart(_base(fig, 330), height=330)
-        st.caption("세로선은 95% 신뢰구간입니다. 첫 6개 시간별 관측 중 강풍 기준 초과 횟수를 비교하며, 연속 노출시간과는 다릅니다.")
+        st.caption("가로선은 95% 신뢰구간이며 회색 점은 구간에 0을 포함합니다. 첫 6개 시간별 관측 중 기준 초과 횟수를 비교합니다. 연속 노출시간과는 다릅니다.")
     if target == "BCT":
         st.info("BCT의 2022년 강풍 고노출은 6건입니다. 이 작은 초기 표본 때문에 개선 추세의 불확실성이 큽니다.")
     else:
@@ -179,8 +199,8 @@ def render_learning(D: dict, META: dict) -> None:
 
 
 def render_validation(D: dict, META: dict) -> None:
-    page_header("07 / 예측 검증", "실제 2025년 자료에서 예측오차를 확인합니다",
-                "2020–2024년 학습을 마친 비GT 모델을 고정해 평가했습니다. 오차 막대가 짧을수록 실제값에 가깝습니다.",
+    page_header("예측 검증", "실제 2025년 자료에서 예측오차를 확인합니다",
+                "2020–2024년 학습을 마친 비GT 모델을 고정해 평가했습니다. 원의 위치는 오차, 면적은 평가 표본 수입니다.",
                 kind="미학습 자료 평가")
     selected = st.selectbox("성능을 확인할 터미널", ["전체"] + TERMINALS, key="validation_page_terminal")
     severity = D["validation_severity_2025"]
@@ -199,40 +219,44 @@ def render_validation(D: dict, META: dict) -> None:
         dict(label="P95 이상 상대오차", value=f"{high.wape_pct:.2f}%", note=f"기준 미만 대비 {diff:+.2f}%p · {int(high.n):,}건", tone="coral"),
         dict(label="평가에 포함된 비율", value=f"{coverage.coverage_pct:.1f}%", note=f"후보 {int(coverage.candidate_n):,}건 중 기상 완전관측", tone="teal"),
     ])
-    left, right = st.columns([1.2, 1])
+    left, right = st.columns([1.25, 1])
     with left:
-        section("① 날씨별 예측오차", "같은 0 기준에서 막대 높이를 비교하세요. 색은 기상등급을 구분합니다.")
-        fig = go.Figure(go.Bar(x=SEVERITY_NAMES, y=group.wape_pct, marker_color=SEVERITY_COLORS,
-            text=[f"<b>{v:.2f}%</b><br>{int(n):,}건" for v, n in zip(group.wape_pct, group.n)],
-            textposition="outside", cliponaxis=False,
+        section("① 날씨별 오차와 표본 규모", "왼쪽일수록 예측오차가 작고, 원이 클수록 평가 사례가 많습니다.")
+        fig = go.Figure(go.Scatter(
+            x=group.wape_pct, y=SEVERITY_NAMES, mode="markers+text",
+            marker=dict(size=group.n, sizemode="area",
+                        sizeref=2*max(float(group.n.max()), 1)/58**2,
+                        color=SEVERITY_COLORS, line=dict(color="white", width=2), opacity=.9),
+            text=[f"<b>{v:.2f}%</b> · {int(n):,}건" for v, n in zip(group.wape_pct, group.n)],
+            textposition="top center", textfont=dict(size=13), cliponaxis=False,
             customdata=np.column_stack([group.n, group.mae]),
-            hovertemplate="%{x}<br>WAPE %{y:.2f}%<br>평가 %{customdata[0]:,.0f}건<br>MAE %{customdata[1]:.2f} 작업단위/h<extra></extra>"))
-        fig.update_layout(showlegend=False, yaxis_title="상대 예측오차 · WAPE (%)", bargap=.42)
-        fig.update_yaxes(range=[0, max(25, float(severity.wape_pct.max())*1.28)])
+            hovertemplate="%{y}<br>WAPE %{x:.2f}%<br>평가 %{customdata[0]:,.0f}건<br>MAE %{customdata[1]:.2f} 작업단위/h<extra></extra>",
+        ))
+        fig.update_layout(showlegend=False, xaxis_title="상대 예측오차 · WAPE (%) · 낮을수록 좋음")
+        fig.update_xaxes(range=[0, max(25, float(severity.wape_pct.max())*1.35)], ticksuffix="%")
+        fig.update_yaxes(autorange="reversed", showgrid=False)
         chart(_base(fig, 350), height=350)
-        st.caption("WAPE = 전체 절대오차 합 ÷ 실제 작업률 합 × 100. 접안 시점의 기상 1개 관측값으로 구분한 서로 겹치지 않는 세 그룹입니다.")
+        st.caption("원의 면적은 선택 터미널 안에서 표본 수에 비례합니다. WAPE = 전체 절대오차 합 ÷ 실제 작업률 합 × 100. 접안 시점의 기상 1개 관측값으로 구분한 서로 겹치지 않는 그룹입니다.")
     with right:
-        section("② 얼마나 많은 자료를 평가했나?", "막대 전체가 평가 후보입니다. 청록색만 실제 모델 검증에 포함됐습니다.")
+        section("② 평가에 포함된 자료의 비율", "청록색은 기상 완전관측으로 평가에 포함된 자료입니다.")
         included = float(coverage.coverage_pct)
-        excluded = 100-included
-        fig = go.Figure()
-        for name, pct, number, color, textcolor in [
-            ("평가 포함", included, int(coverage.evaluated_n), TEAL, "white"),
-            ("기상 미관측 제외", excluded, int(coverage.excluded_incomplete_n), PALE, INK),
-        ]:
-            text = f"<b>{pct:.1f}%</b><br>{number:,}건" if pct >= 7 else ""
-            fig.add_trace(go.Bar(x=[pct], y=[selected], orientation="h", name=name,
-                marker_color=color, text=[text], textposition="inside", insidetextanchor="middle",
-                textfont=dict(color=textcolor, size=17),
-                hovertemplate=f"{name}<br>{number:,}건 ({pct:.2f}%)<extra></extra>"))
-        fig.update_layout(barmode="stack", bargap=.58,
-                          legend=dict(orientation="h", y=1.07, x=0),
-                          xaxis_title="평가 후보에서 차지하는 비율 (%)")
-        fig.update_xaxes(range=[0, 100], tickvals=[0, 25, 50, 75, 100], ticksuffix="%")
-        fig.update_yaxes(showticklabels=False)
-        chart(_base(fig, 260), height=260)
-        st.caption(f"기상 미관측으로 {int(coverage.excluded_incomplete_n):,}건이 제외됐습니다. "
-                   "특히 신항의 2025년 기상 기록은 선박 이벤트 시점 중심이어서, 검증 표본의 대표성이 제한됩니다.")
+        fig = go.Figure(go.Pie(
+            labels=["평가 포함", "기상 미관측 제외"],
+            values=[int(coverage.evaluated_n), int(coverage.excluded_incomplete_n)],
+            hole=.73, sort=False, direction="clockwise", rotation=90,
+            marker=dict(colors=[TEAL, PALE], line=dict(color="white", width=3)),
+            textinfo="none", showlegend=True,
+            hovertemplate="%{label}<br>%{value:,}건 · %{percent}<extra></extra>",
+        ))
+        fig.add_annotation(x=.5, y=.54, xref="paper", yref="paper", showarrow=False,
+                           text=f"<b>{included:.1f}%</b>", font=dict(size=34, color=TEAL))
+        fig.add_annotation(x=.5, y=.38, xref="paper", yref="paper", showarrow=False,
+                           text=f"평가 포함 {int(coverage.evaluated_n):,}건", font=dict(size=13, color=INK))
+        fig.update_layout(height=350, margin=dict(t=20, b=50, l=20, r=20),
+                          legend=dict(orientation="h", y=-.08, x=.5, xanchor="center"))
+        chart(fig, height=350)
+        st.caption(f"전체 후보 {int(coverage.candidate_n):,}건 중 기상 미관측 {int(coverage.excluded_incomplete_n):,}건이 제외됐습니다. "
+                   "특히 신항의 2025년 기록은 선박 이벤트 시점 중심이어서, 검증 표본의 대표성이 제한됩니다.")
     if (group.n < 100).any():
         st.info("선택한 터미널에는 평가 사례가 100건 미만인 기상등급이 있습니다. 작은 집단의 오차 차이는 조심해서 해석하세요.")
 
@@ -241,12 +265,20 @@ def render_validation(D: dict, META: dict) -> None:
         f = factors[factors.terminal == selected].copy()
         st.markdown("**강풍·파고·시정 조건은 서로 겹칠 수 있습니다. 조건별 표본 수를 합산하지 않습니다.**")
         eligible = f[f.n >= 30].sort_values("wape_pct", ascending=False)
-        fig = go.Figure(go.Bar(x=eligible.wape_pct, y=eligible.condition, orientation="h",
-            marker_color=[CORAL if "P95" in s else BLUE for s in eligible.condition],
-            text=[f"{v:.2f}% · {int(n):,}건" for v, n in zip(eligible.wape_pct, eligible.n)], textposition="outside", cliponaxis=False))
-        fig.update_xaxes(range=[0, max(25, float(eligible.wape_pct.max())*1.4)])
-        fig.update_layout(showlegend=False, xaxis_title="WAPE (%) · 낮을수록 좋음")
-        chart(_base(fig, 370))
+        if not eligible.empty:
+            fig = go.Figure(go.Scatter(x=eligible.wape_pct, y=eligible.condition, mode="markers+text",
+                marker=dict(size=eligible.n, sizemode="area", sizeref=2*float(eligible.n.max())/32**2,
+                            color=[CORAL if "P95" in name else BLUE for name in eligible.condition],
+                            opacity=.9, line=dict(color="white", width=1.5)),
+                text=[f"{v:.2f}% · {int(n):,}건" for v, n in zip(eligible.wape_pct, eligible.n)],
+                textposition="middle right", cliponaxis=False, customdata=eligible.n,
+                hovertemplate="%{y}<br>WAPE %{x:.2f}%<br>평가 %{customdata:,.0f}건<extra></extra>"))
+            fig.update_xaxes(range=[0, max(25, float(eligible.wape_pct.max())*1.5)])
+            fig.update_yaxes(autorange="reversed", showgrid=False)
+            fig.update_layout(showlegend=False, xaxis_title="WAPE (%) · 원의 면적 = 평가 사례 수")
+            chart(_base(fig, 390))
+        else:
+            st.info("30건 이상인 기상조건이 없어 오차 비교 그림은 생략합니다. 아래 표에서 표본 수를 확인하세요.")
         s = severity[severity.terminal != "전체"]
         heat = s.pivot(index="terminal", columns="severity", values="wape_pct").reindex(index=TERMINALS, columns=SEVERITIES)
         count = s.pivot(index="terminal", columns="severity", values="n").reindex(index=TERMINALS, columns=SEVERITIES)
@@ -268,14 +300,14 @@ def render_validation(D: dict, META: dict) -> None:
         for kind, color in zip(SEVERITIES, SEVERITY_COLORS):
             p = c[c.severity == kind]
             fig.add_trace(go.Scatter(x=p.mean_pred, y=p.mean_actual, mode="markers", name=kind,
-                marker=dict(size=11, color=color, opacity=.85), customdata=p.n,
+                marker=dict(size=p.n, sizemode="area", sizeref=2*max(float(c.n.max()), 1)/30**2, color=color, opacity=.8, line=dict(color="white", width=1)), customdata=p.n,
                 hovertemplate="평균 예측 %{x:.2f}/h<br>평균 실제 %{y:.2f}/h<br>%{customdata:,.0f}건<extra></extra>"))
         lim = max(float(c.mean_pred.max()), float(c.mean_actual.max()))*1.08
         fig.add_shape(type="line", x0=0, y0=0, x1=lim, y1=lim, line=dict(color=SLATE, dash="dash"))
         fig.update_layout(xaxis_title="평균 예측 작업률 (/h)", yaxis_title="평균 실제 작업률 (/h)")
-        fig.update_xaxes(range=[0,lim]); fig.update_yaxes(range=[0,lim])
+        fig.update_xaxes(range=[0,lim]); fig.update_yaxes(range=[0,lim], scaleanchor="x", scaleratio=1)
         chart(_base(fig, 410))
-        st.caption("점이 대각선에 가까울수록 집단 평균 예측과 실제가 비슷합니다. 각 점은 예측값 구간의 집계 결과입니다.")
+        st.caption("점이 대각선에 가까울수록 집단 평균 예측과 실제가 비슷합니다. 원의 면적은 표본 수이며 각 점은 예측값 구간의 집계 결과입니다.")
         _table(group[["severity","train_n","n","mae","wape_pct","r2","bias","p90_abs_error"]].rename(columns={
             "severity":"기상등급", "train_n":"학습 사례", "n":"평가 건수", "mae":"MAE /h", "wape_pct":"WAPE (%)",
             "r2":"R²", "bias":"평균 편향(예측−실제)", "p90_abs_error":"절대오차 P90 /h"}).round(3))
@@ -291,11 +323,20 @@ def render_validation(D: dict, META: dict) -> None:
                     "기상과 효율 차이의 연관성, 기상변수의 추가 예측력은 별도로 판단해야 합니다.")
         fig = go.Figure()
         labels = [f"2024 GT · {int(a.n):,}건", f"2025 비GT · {int(b.n):,}건"]
-        for label, values, color in [("운영조건만", before, TEAL), ("기상정보 포함", after, CORAL)]:
-            fig.add_trace(go.Bar(x=labels, y=values, name=label, marker_color=color,
-                text=[f"{x:.2f}%" for x in values], textposition="outside"))
-        fig.update_layout(barmode="group", yaxis_title="WAPE (%) · 낮을수록 좋음")
-        fig.update_yaxes(range=[0, 21])
+        for label, first, second in zip(labels, before, after):
+            fig.add_trace(go.Scatter(x=[first, second], y=[label, label], mode="lines",
+                                    line=dict(color="#D6E1E8", width=7), showlegend=False, hoverinfo="skip"))
+        for label, values, color, symbol, position in [
+            ("운영조건만", before, BLUE, "circle", "bottom center"),
+            ("기상정보 포함", after, CORAL, "diamond", "top center"),
+        ]:
+            fig.add_trace(go.Scatter(x=values, y=labels, mode="markers+text", name=label,
+                marker=dict(size=17, color=color, symbol=symbol, line=dict(color="white", width=2)),
+                text=[f"{x:.2f}%" for x in values], textposition=position, cliponaxis=False,
+                hovertemplate=f"{label}<br>%{{y}}<br>WAPE %{{x:.2f}}%<extra></extra>"))
+        fig.update_layout(xaxis_title="WAPE (%) · 낮을수록 좋음")
+        fig.update_xaxes(range=[0, 21])
+        fig.update_yaxes(autorange="reversed", showgrid=False)
         chart(_base(fig, 350))
         st.caption("이 비교는 모델 B의 별도 실험입니다. 상단 Model A의 전체 WAPE 15.63%와 동일한 모델 설정을 뜻하지 않습니다.")
 

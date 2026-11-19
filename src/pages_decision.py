@@ -9,14 +9,12 @@ from __future__ import annotations
 from datetime import date, datetime
 import math
 
-import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 
 from logic import Scenario, TERMINALS
-from ui import (page_header, takeaway, metrics, chart, section, source_note,
-                BLUE, TEAL, CORAL, AMBER, SLATE)
+from decision_visuals import case_raincloud, risk_donut, brier_comparison
+from ui import page_header, takeaway, metrics, chart, section, source_note
 
 DEFAULT_SCENARIO = Scenario('BCT', datetime(2027, 11, 20, 10), 6.0, 1.2, 5000, 396, 2, 2)
 PROXY_TERMINALS = {'BCT', 'BNCT', 'HPNT', 'PNC', 'PNIT'}
@@ -171,15 +169,13 @@ def render_cases(D, META, navigate):
                 dict(label='과거 작업률 중앙값', value=f'{median:.1f} /h', note=f'중간 50%는 {q1:.1f}~{q3:.1f}/h', tone='blue'),
                 dict(label='과거 체류시간 중앙값', value=f'{rows.duration_h.median():.1f}시간', note='예정 출항 대체 사례가 포함될 수 있습니다.', tone='slate'),
             ])
-            section('점 하나가 실제 과거 기록 한 건입니다', '박스는 중간 50%, 가운데 선은 중앙값입니다. 선택한 조건의 새로운 예측구간이 아닙니다.')
-            fig = go.Figure(go.Box(x=rows.work_per_hour.astype(float), name='검색 사례', boxpoints='all',
-                                   jitter=.35, pointpos=0, marker=dict(color=BLUE, size=7, opacity=.65),
-                                   line=dict(color=BLUE, width=2), fillcolor='rgba(82,124,156,.12)',
-                                   hovertemplate='기록 작업률 %{x:.2f}/h<extra>유사 기항</extra>'))
-            fig.update_layout(height=255, showlegend=False, title=f'같은 터미널 · 가까운 {n:,}건의 작업률 분포',
-                              xaxis_title='기록 작업률 · 원자료 작업단위/h', yaxis_title='',
-                              xaxis=dict(rangemode='tozero'), margin=dict(t=55, b=48, l=15, r=25))
+            section('어디에 모여 있고, 얼마나 흩어졌을까요?', '가운데 박스는 중간 50%, 아래 점 하나는 과거 기록 한 건입니다. 진한 점일수록 입력 조건이 더 가깝습니다.')
+            fig, density_shown = case_raincloud(rows, max_distance=radius)
             chart(fig)
+            if density_shown:
+                st.caption('위의 부드러운 모양은 검색된 작업률의 밀도 추정입니다. 20건 이상에서만 표시하며 관측 범위 밖으로 늘리지 않습니다. 선택 조건의 예측구간이나 신뢰구간이 아닙니다.')
+            else:
+                st.caption('밀도 곡선을 그리지 않고 실제 기록의 위치와 중간 50%만 보여줍니다. 점의 세로 위치는 겹침을 줄이기 위한 배치이며, 가로 위치는 기록된 작업률 그대로입니다.')
             if result.get('shortage', False) or n < 20:
                 st.warning(f'조건을 충족하는 사례가 {n:,}건입니다. 이 작은 표본의 중앙값과 범위를 일반적인 결과로 확대 해석하지 마세요.')
     _departure_note(s.terminal)
@@ -276,8 +272,7 @@ def render_risk(D, META, navigate):
         else:
             p = min(1., max(0., float(probability)))
             above = _finite(threshold) and p >= float(threshold)
-            tone = 'coral' if above else 'blue'
-            color = CORAL if above else BLUE
+            tone = 'blue'
             takeaway(f'{s.terminal} · 큰 효율저하의 참고용 예측확률은 {p * 100:.1f}%입니다.',
                      f'{result.get("status", "시나리오 참고값")} · 관측자료로 학습한 조건부 확률입니다. 운영 중 경보로 쓰기 위한 전향 검증은 별도입니다.', tone)
             st.caption(_scenario_caption(s))
@@ -290,19 +285,18 @@ def render_risk(D, META, navigate):
             ])
             if terminal_eval:
                 st.caption(f'{s.terminal}의 2025년 검증: {int(terminal_eval["n"]):,}건 · ROC-AUC {float(terminal_eval["roc_auc"]):.3f} · Brier {float(terminal_eval["brier"]):.3f} · 사건 발생비율 {_pct(terminal_eval["event_rate"])}. 전체 모델 성능과 별도로 확인하세요.')
-            fig = go.Figure(go.Bar(x=[p * 100], y=['선택 조건'], orientation='h', marker_color=color,
-                                   width=.42, text=[f'{p * 100:.1f}%'], textposition='outside', cliponaxis=False,
-                                   hovertemplate='예측 사건 확률 %{x:.2f}%<extra></extra>'))
-            if _finite(threshold):
-                fig.add_vline(x=100 * float(threshold), line_dash='dash', line_color=AMBER,
-                              annotation_text=f'검토선 {100 * float(threshold):.1f}%', annotation_position='top right')
-            fig.update_layout(height=245, title='막대가 길수록 정의한 효율저하 사건의 예측확률이 큽니다',
-                              xaxis=dict(range=[0, 105], tickvals=[0, 25, 50, 75, 100], ticksuffix='%'),
-                              yaxis_title='', xaxis_title='효율저하 사건의 예측확률', showlegend=False,
-                              margin=dict(t=75, b=50, l=20, r=30))
-            chart(fig)
-            if _finite(threshold):
-                st.caption(metadata.get('threshold_description', '점선은 2024년 보정확률의 상위 20% 지점에 둔 검토선입니다. 효율 10% 저하라는 사건 정의와 다르며 안전정지 기준이 아닙니다.'))
+            section('원의 채워진 비율로 확률을 읽습니다', '파란색은 정의한 효율저하 사건, 회색은 그 외 결과의 모델 확률입니다.')
+            donut_col, explanation_col = st.columns([1, 1.15], gap='large')
+            with donut_col:
+                chart(risk_donut(p))
+            with explanation_col:
+                st.markdown('### 탐색적 예측 · 운영 참고용')
+                st.markdown('**평온조건의 기준 중앙 작업률보다 10% 넘게 낮은 결과**를 사건으로 정의했습니다.')
+                if _finite(threshold):
+                    position = '검토선 이상' if above else '검토선 아래'
+                    st.markdown(f'**검토선 {100 * float(threshold):.1f}% · 현재 {position}**')
+                    st.caption(metadata.get('threshold_description', '2024년 보정확률의 상위 20% 지점입니다. 효율 10% 저하라는 사건 정의와 다르며 안전정지 기준이 아닙니다.'))
+                st.caption('실제 기항 100건을 그린 그림이 아닙니다. 선택한 조건의 모델 확률을 100% 기준으로 표현했습니다.')
         remaining_notes = [str(x) for x in dict.fromkeys(result.get('warnings', []))
                            if x and not str(x).startswith('검증 단계의 참고 예측입니다.')]
         if remaining_notes:
@@ -316,25 +310,8 @@ def render_risk(D, META, navigate):
     brier, baseline = ev.get('brier'), ev.get('baseline_brier')
     terminal_baseline = ev.get('terminal_baseline_brier')
     if _finite(brier) and _finite(baseline):
-        labels = ['전체 발생률 기준']
-        scores = [float(baseline)]
-        colors = [SLATE]
-        if _finite(terminal_baseline):
-            labels.append('터미널별 발생률 기준')
-            scores.append(float(terminal_baseline))
-            colors.append(SLATE)
-        labels.append('새 위험모델')
-        scores.append(float(brier))
-        colors.append(BLUE if float(brier) < min(scores[:-1]) else AMBER)
-        fig = go.Figure(go.Bar(x=scores, y=labels, orientation='h', marker_color=colors,
-                              text=[f'{v:.4f}' for v in scores], textposition='outside', cliponaxis=False,
-                              hovertemplate='%{y}<br>Brier %{x:.5f}<extra></extra>'))
-        fig.update_layout(height=270, title='확률오차 비교 · 짧은 막대가 더 좋습니다',
-                          xaxis_title='2025년 Brier score', yaxis=dict(autorange='reversed'),
-                          xaxis=dict(range=[0, max(scores) * 1.25]), showlegend=False,
-                          margin=dict(t=55, b=48, l=15, r=30))
-        chart(fig)
-        st.caption('비교 기준의 발생률은 2024년 자료에서 고정했습니다. 세 방법 모두 같은 2025년 기항에서 평가했습니다.')
+        chart(brier_comparison(ev))
+        st.caption('다이아몬드는 단순 발생률 기준, 원은 새 위험모델입니다. 비교 발생률은 2024년에 고정했고 같은 2025년 기항에서 평가했습니다. 확대된 가로 눈금의 실제 수치를 함께 보세요.')
     with st.expander('무엇을 ‘큰 효율저하’라고 정의했나요?'):
         st.markdown('**기록 작업률 < 2020–2022년 평온조건 기준 중앙 작업률 × 0.90**이면 효율저하 사건으로 정했습니다. 10%는 이 기능을 위한 설계 기준이며, 기존 BCT 강풍 분석의 −10.74%를 경보 기준으로 옮긴 값이 아닙니다.')
         st.markdown('기준 중앙 작업률 모델은 2020–2022년의 평온한 기항으로 고정하고, 최종 작업량 등 운영조건을 이용해 사후 결과를 보정합니다. 그 기준모델의 오차도 사건 정의에 포함됩니다. 위험모델은 최종 작업량을 입력받지 않고 접안 시점의 조건으로 이 사건을 예측합니다.')

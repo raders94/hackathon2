@@ -5,6 +5,7 @@ describe adjusted associations or descriptive distributions, not causal losses.
 """
 from __future__ import annotations
 
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -13,6 +14,8 @@ import streamlit as st
 
 from ui import page_header, takeaway, metrics, chart, section, source_note
 from story import dose_forest, bct_five_stage, wind_wave_forest, ml_year_chart
+from research_visuals import weather_effect_heatmap, terminal_bubble_map, terminal_violin, annual_rate_heatmap
+from viz_theme import render_seaborn
 
 
 TERMINALS = ["BCT", "BNCT", "HPNT", "PNC", "PNIT", "BPTC_G", "BPT_S"]
@@ -32,46 +35,56 @@ def _ordered(frame: pd.DataFrame) -> pd.DataFrame:
     return frame.set_index("terminal").reindex(TERMINALS).reset_index()
 
 
-def _effect_bars(
+def _effect_forest(
     labels: list[str], values: np.ndarray, lo: np.ndarray, hi: np.ndarray,
     significant: np.ndarray, title: str, height: int = 430,
 ) -> go.Figure:
-    """Use bar length for magnitude, and reserve gray for uncertain findings."""
+    """Point = estimate, line = confidence interval; gray means uncertain."""
     vals = np.asarray(values, dtype=float)
     lows = np.asarray(lo, dtype=float)
     highs = np.asarray(hi, dtype=float)
     sig = np.asarray(significant, dtype=bool)
     colors = [SLATE if not s else (CORAL if v < 0 else TEAL)
               for v, s in zip(vals, sig)]
-    labels_on_bars = [f"{_pct(v)}" + (" · 차이 불확실" if not s else "")
+    labels_on_points = [f"{_pct(v)}" + (" · 불확실" if not s else "")
                       for v, s in zip(vals, sig)]
-    fig = go.Figure(go.Bar(
-        x=vals, y=labels, orientation="h", marker_color=colors,
-        width=.53, cliponaxis=False,
+    fig = go.Figure(go.Scatter(
+        x=vals, y=labels, mode="markers",
+        marker=dict(size=13, color=colors, symbol=["circle" if s else "circle-open" for s in sig], line=dict(width=2)),
+        cliponaxis=False,
         error_x=dict(type="data", symmetric=False,
                      array=np.maximum(highs - vals, 0),
                      arrayminus=np.maximum(vals - lows, 0),
-                     color="#536676", thickness=1.4, width=5),
+                     color="#536676", thickness=2.4, width=5),
         customdata=np.column_stack((lows, highs)),
         hovertemplate="%{y}<br>조정 차이 %{x:+.2f}%<br>95% 신뢰구간 %{customdata[0]:+.2f}% ~ %{customdata[1]:+.2f}%<extra></extra>",
     ))
     finite = np.concatenate([lows[np.isfinite(lows)], highs[np.isfinite(highs)]])
     bound = max(3.0, float(np.max(np.abs(finite))) * 1.65) if finite.size else 5.0
-    for label, val, low, high, text_label in zip(labels, vals, lows, highs, labels_on_bars):
+    for label, val, low, high, text_label in zip(labels, vals, lows, highs, labels_on_points):
         fig.add_annotation(x=float(low - bound*.025 if val < 0 else high + bound*.025),
                            y=label, text=text_label, showarrow=False,
                            xanchor="right" if val < 0 else "left",
-                           font=dict(size=13, color=NAVY))
+                           font=dict(size=12, color=NAVY))
     fig.add_vline(x=0, line_dash="dash", line_color="#768C9C", line_width=1)
     fig.update_layout(
         title=title, height=height, showlegend=False,
         margin=dict(l=20, r=60, t=60, b=50),
         xaxis_title="조정 작업효율 차이 (%) · 0 = 비교군과 차이 없음",
-        yaxis_title="", bargap=.42,
+        yaxis_title="",
     )
     fig.update_xaxes(range=[-bound, bound], ticksuffix="%", zeroline=False)
     fig.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=labels)
     return fig
+
+
+@st.cache_data(show_spinner=False)
+def _distribution_records() -> pd.DataFrame:
+    """Read the real weather-complete search cohort, not synthetic box data."""
+    path = Path(__file__).resolve().parents[1] / "assets" / "case_search" / "case_index.csv.gz"
+    records = pd.read_csv(path, usecols=["terminal", "start", "work_per_hour"])
+    records["year"] = pd.to_datetime(records.start, errors="coerce").dt.year
+    return records
 
 
 def _add_point_labels(fig: go.Figure) -> go.Figure:
@@ -159,16 +172,21 @@ def render_weather(D: dict, META: dict) -> None:
         {"label": "BCT · 노출군 표본", "value": f"{int(bct.n_exposed):,}건",
          "note": f"0회 비교군 {int(bct.n_calm_reference):,}건", "tone": "blue"},
     ])
-    section("막대가 길수록 효율 차이가 큽니다",
-            "주황: 유의한 감소 · 청록: 유의한 증가 · 회색: 차이 불확실. 가는 선은 95% 신뢰구간입니다.")
-    fig = _effect_bars(
-        view.terminal.tolist(), view.adjusted_eff_change_pct.to_numpy(),
-        view.ci_low_pct.to_numpy(), view.ci_high_pct.to_numpy(),
-        (view.fdr_q_7terminal < .05).to_numpy(),
-        f"7개 터미널 · {FACTORS[factor]} {exposure.replace('-', '–')}회 vs 0회", 445,
-    )
-    chart(fig, height=445)
-    st.caption("왼쪽일수록 비교군보다 효율이 낮습니다. 같은 척도로 비교하며, 유의성은 기상요인별 7개 터미널 FDR q<0.05 기준입니다.")
+    section("기상별 차이를 색으로, 추정 범위를 점과 선으로 봅니다",
+            "주황: 유의한 감소 · 청록: 유의한 증가 · 회색: 차이 불확실. 히트맵의 *는 FDR q<0.05이며 테두리는 선택한 기상요인입니다.")
+    overview, detail = st.columns([.95, 1.25])
+    with overview:
+        render_seaborn(weather_effect_heatmap(eff, exposure, factor),
+                       alt="7개 터미널과 강풍·고파고·저시정의 조정 작업효율 차이. 유의한 셀만 색으로 강조하며 자료 없음은 별도로 표시합니다.")
+    with detail:
+        fig = _effect_forest(
+            view.terminal.tolist(), view.adjusted_eff_change_pct.to_numpy(),
+            view.ci_low_pct.to_numpy(), view.ci_high_pct.to_numpy(),
+            (view.fdr_q_7terminal < .05).to_numpy(),
+            f"선택한 {FACTORS[factor]} · 점 추정치와 95% 신뢰구간", 445,
+        )
+        chart(fig, height=445)
+    st.caption("오른쪽 그림에서 왼쪽일수록 비교군보다 효율이 낮습니다. 회색 빈 점은 추정치가 0이라는 뜻이 아니라 차이가 불확실하다는 뜻입니다. 유의성은 기상요인별 7개 터미널 FDR q<0.05 기준입니다.")
     source_note("modelb_weather_residual_effects.csv · 총작업량 ÷ 접안 후 체류시간 기준 작업효율")
 
     with st.expander("선택한 결과의 표본·신뢰구간·검정값 보기", expanded=False):
@@ -198,7 +216,7 @@ def render_weather(D: dict, META: dict) -> None:
         {"방법": "2024년 분리 검증", "차이": h.change_pct, "하한": h.ci_low_pct, "상한": h.ci_high_pct},
     ])
     methods_sig = ((methods["상한"] < 0) | (methods["하한"] > 0)).to_numpy()
-    chart(_effect_bars(methods["방법"].tolist(), methods["차이"].to_numpy(),
+    chart(_effect_forest(methods["방법"].tolist(), methods["차이"].to_numpy(),
                        methods["하한"].to_numpy(), methods["상한"].to_numpy(), methods_sig,
                        "분석방법 4개에서 감소 방향을 확인했습니다", 310), height=310)
     st.caption("방법별 비교집단과 보정 방식이 다릅니다. 동일 자료를 활용한 민감도 비교이며 서로 독립적인 인과 증거 4개를 뜻하지 않습니다.")
@@ -251,7 +269,7 @@ def render_weather(D: dict, META: dict) -> None:
 
 def render_terminals(D: dict, META: dict) -> None:
     page_header("터미널 현황", "터미널마다 작업 규모와 작업률 분포가 다릅니다",
-                "막대 길이로 자료 규모와 중앙 작업률을 비교합니다. 이 화면은 기상·선박 구성 차이를 보정하기 전의 현황입니다.",
+                "버블의 면적은 기항 규모, 바이올린의 폭은 작업률이 모인 정도를 보여줍니다. 기상·선박 구성 차이를 보정하기 전의 현황입니다.",
                 kind="현황 데이터")
     year = st.selectbox("살펴볼 기간", ["전체 기간", 2020, 2021, 2022, 2023, 2024, 2025],
                         key="research_terminal_year")
@@ -264,42 +282,39 @@ def render_terminals(D: dict, META: dict) -> None:
     count = int(available.sum())
     max_terminal = present.loc[present.calls.idxmax()]
     takeaway(f"{period} 자료는 {count}개 터미널, {total:,}기항입니다.",
-             "표본과 작업 규모의 차이가 크므로, 이 막대의 순위만으로 터미널 성과나 기상 취약도를 판단하지 않습니다.", tone="blue")
+             "표본과 작업 규모의 차이가 크므로, 이 현황만으로 터미널 성과나 기상 취약도를 판단하지 않습니다.", tone="blue")
     metrics([
         {"label": "선택 기간의 분석 기항", "value": f"{total:,}건", "note": "유효 운영표본 · 추가 P99 필터 전", "tone": "blue"},
         {"label": "자료가 있는 터미널", "value": f"{count} / 7", "note": period, "tone": "slate"},
         {"label": "가장 많은 관측 기항", "value": str(max_terminal.terminal),
          "note": f"{int(max_terminal.calls):,}건 · 표본 규모", "tone": "teal"},
     ])
-    section("왼쪽은 표본의 크기, 오른쪽은 중앙 작업률입니다",
-            "각 그림 안의 7개 터미널에 같은 눈금을 적용했습니다. 작업률은 선박별 총작업량 ÷ 접안 후 체류시간입니다.")
-    left, right = st.columns(2)
+    section("운영 규모는 버블로, 실제 기록의 차이는 분포로",
+            "색은 터미널 구분입니다. 왼쪽의 원 면적은 기항 수에 비례하고, 오른쪽은 실제 개별 기록으로 그린 작업률 분포입니다.")
+    left, right = st.columns([1, 1.2])
     with left:
-        fig = go.Figure(go.Bar(x=present.calls, y=present.terminal, orientation="h",
-                              marker_color=BLUE, width=.54,
-                              text=[f"{int(v):,}건" for v in present.calls], textposition="outside", cliponaxis=False,
-                              hovertemplate="%{y}<br>분석 기항 %{x:,.0f}건<extra></extra>"))
-        fig.update_layout(title="기항 수가 많을수록 막대가 깁니다", xaxis_title="분석 기항 수 (건)",
-                          yaxis_title="", margin=dict(l=20, r=70, t=60, b=50))
-        fig.update_xaxes(range=[0, float(present.calls.max()) * 1.3])
-        fig.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=TERMINALS)
-        chart(fig, height=430)
+        chart(terminal_bubble_map(present, period), height=450)
+        st.caption(f"유효 운영표본 {total:,}건의 집계입니다. 원 위에 마우스를 올리면 기항 수와 체류시간을 볼 수 있습니다.")
     with right:
-        fig = go.Figure(go.Bar(x=present.median_rate, y=present.terminal, orientation="h",
-                              marker_color=TEAL, width=.54,
-                              text=[f"{v:.1f} /h" for v in present.median_rate], textposition="outside", cliponaxis=False,
-                              customdata=present[["median_cargo", "median_berth_h"]].to_numpy(),
-                              hovertemplate="%{y}<br>중앙 작업률 %{x:.1f}/h<br>중앙 작업량 %{customdata[0]:,.0f}<br>중앙 체류시간 %{customdata[1]:.1f}h<extra></extra>"))
-        fig.update_layout(title="선박별 평균 작업률의 중앙값", xaxis_title="작업단위 / 접안 체류시간 (h)",
-                          yaxis_title="", margin=dict(l=20, r=70, t=60, b=50))
-        fig.update_xaxes(range=[0, float(present.median_rate.max()) * 1.3])
-        fig.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=TERMINALS)
-        chart(fig, height=430)
+        records = _distribution_records()
+        distribution = records if year == "전체 기간" else records.loc[records.year.eq(year)]
+        if distribution.empty:
+            st.info("선택한 기간의 개별 기항 분포 자료가 없습니다.")
+        else:
+            render_seaborn(terminal_violin(distribution, period),
+                           alt=f"{period} 기상 관측이 완전한 개별 기항의 터미널별 작업률 분포. 가운데 점은 중앙값이며 각 터미널의 폭은 별도로 정규화했습니다.")
+            st.caption(f"풍속·파고·시정이 모두 있는 검색용 {len(distribution):,}건을 사용하므로 왼쪽 집계와 표본이 다릅니다. 체류 6시간 초과·추가 P99 필터 없음. 폭은 터미널별 정규화 밀도이며 표본 규모가 아닙니다.")
     missing = data.loc[~available, "terminal"].tolist()
     if missing:
         st.caption(f"{period} 자료 없음: {', '.join(missing)}. 관측이 없는 터미널을 0건·작업률 0으로 표시하지 않았습니다.")
-    st.caption("파랑은 표본 규모, 청록은 보정 전 작업률입니다. 작업률은 실제 크레인 Moves/h나 특정 한 시간의 터미널 실적과 다릅니다.")
-    source_note(f"{'terminal.csv' if year == '전체 기간' else 'annual.csv'} · 유효 운영표본의 기항 수·중앙값")
+    st.caption("바이올린의 내부 선은 사분위수, 가운데 점은 중앙값입니다. 20건 미만이면 밀도 곡선 대신 실제 점만 표시합니다. 작업률은 실제 크레인 Moves/h나 특정 한 시간의 터미널 실적과 다릅니다.")
+    source_note(f"{'terminal.csv' if year == '전체 기간' else 'annual.csv'} · 유효 운영표본 집계 / case_search/case_index.csv.gz · 기상완전 개별 기항")
+
+    with st.expander("연도 × 터미널 히트맵으로 변화 보기", expanded=False):
+        render_seaborn(annual_rate_heatmap(D["annual"], year),
+                       alt="2020년부터 2025년까지 터미널별 중앙 작업률의 히트맵. BCT의 2020년과 2021년은 자료 없음으로 표시합니다.")
+        st.caption("색이 진할수록 보정 전 중앙 작업률이 높습니다. 자료가 없는 연도는 0으로 채우지 않았으며, 연도별 선박 구성과 기상 차이를 통제한 개선율은 아닙니다.")
+        source_note("annual.csv · 연도별 유효 운영표본")
 
     with st.expander("터미널별 작업량·체류시간·표본의 상세 수치", expanded=False):
         table = data[["terminal", "calls", "median_cargo", "median_berth_h", "median_rate"]].copy()
